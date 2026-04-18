@@ -133,15 +133,22 @@
 
   <div class="count-row">
     <div class="count-card">
-      <div class="count-title">Raw Product Count</div>
+      <div class="count-title">Men's Items on Sale</div>
       <div class="count-val" id="count">—</div>
-      <div class="count-sub">on man-sale-l1217.html</div>
+      <div class="count-sub">unique products detected</div>
     </div>
     <div class="count-card">
       <div class="count-title">Sale Threshold</div>
       <div class="count-val" id="threshold">—</div>
       <div class="count-sub">≥ this = major sale</div>
     </div>
+  </div>
+
+  <div id="productsSection" style="display:none; margin-bottom:1rem;">
+    <div style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:0.5rem;">
+      Sample Sale Items
+    </div>
+    <div id="productsList" style="display:flex;flex-direction:column;gap:0.4rem;"></div>
   </div>
 
   <div id="errorBox"></div>
@@ -152,7 +159,7 @@
   </div>
 
   <div class="source">
-    Source: <a id="sourceLink" href="#" target="_blank" rel="noopener">Zara IL Men's Sale</a>
+    Source: <a id="sourceLink" href="#" target="_blank" rel="noopener">Zara IL Sale Page</a>
   </div>
 </div>
 
@@ -192,8 +199,27 @@
     document.getElementById("vMsg").textContent   = v.message || "";
 
     // Counts
-    document.getElementById("count").textContent     = (data.count != null) ? data.count : "—";
+    const cnt = data.man_count != null ? data.man_count : (data.count != null ? data.count : "—");
+    document.getElementById("count").textContent     = cnt;
     document.getElementById("threshold").textContent = data.threshold != null ? data.threshold : "—";
+
+    // Sample products
+    const prods = data.sample_products || [];
+    const section = document.getElementById("productsSection");
+    const list = document.getElementById("productsList");
+    if (prods.length > 0) {
+      list.innerHTML = prods.map(p => `
+        <a href="${p.url}" target="_blank" rel="noopener" style="
+          display:flex; align-items:center; justify-content:space-between;
+          background:var(--card); border:1px solid var(--border); border-radius:8px;
+          padding:0.6rem 0.9rem; font-size:0.82rem; text-decoration:none; color:var(--text);">
+          <span>${p.name}</span>
+          <span style="color:var(--muted);font-size:0.75rem;">→</span>
+        </a>`).join("");
+      section.style.display = "block";
+    } else {
+      section.style.display = "none";
+    }
 
     // Meta
     const checkedAt = data.checked_at
@@ -204,7 +230,8 @@
     document.getElementById("checkedAt").textContent = checkedAt;
 
     // Source link
-    if (data.url) document.getElementById("sourceLink").href = data.url;
+    const srcUrl = data.sale_url || data.url;
+    if (srcUrl) document.getElementById("sourceLink").href = srcUrl;
 
     // Error
     const errBox = document.getElementById("errorBox");

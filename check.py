@@ -1,7 +1,7 @@
 """
 Zara Israel Men's Sale Monitor — POC
 Bypasses Akamai bot protection via curl-cffi Chrome TLS impersonation.
-Counts products on Zara IL men's sale page.
+Fetches the Zara IL sale page and counts MEN-section products specifically.
 """
 
 import sys
@@ -21,40 +21,37 @@ from curl_cffi import requests as cffi_requests
 
 # ─── Config ────────────────────────────────────────────────────────────────
 
-HOMEPAGE       = "https://www.zara.com/il/en/"
-MAN_SALE_URL   = "https://www.zara.com/il/en/man-sale-l1217.html"
-WOMAN_SALE_URL = "https://www.zara.com/il/en/woman-sale-l1217.html"  # same page, for sanity
-MAJOR_SALE_THRESHOLD = 30  # >30 unique products = major sale
+HOMEPAGE = "https://www.zara.com/il/en/"
+
+# The active sale page on Zara IL. Contains mixed-gender products;
+# we filter to sectionName=MAN explicitly.
+# l1217 = current IL sale category (confirmed active April 2026)
+SALE_URL = "https://www.zara.com/il/en/woman-sale-l1217.html"
+
+MAJOR_SALE_THRESHOLD = 10  # >10 unique MAN products = major sale
+SAMPLE_LIMIT = 6
 SESSION_WARM_PAUSE_SEC = 2
 
 
 # ─── Akamai bypass ─────────────────────────────────────────────────────────
 
 def make_session():
-    """Start session impersonating Chrome 124 TLS fingerprint + solve Akamai challenge."""
     s = cffi_requests.Session(impersonate="chrome124")
-    s.headers.update({
-        "Accept-Language": "en-IL,en;q=0.9,he;q=0.8",
-    })
+    s.headers.update({"Accept-Language": "en-IL,en;q=0.9,he;q=0.8"})
 
-    # First hit — gets interstitial challenge page
     r = s.get(HOMEPAGE, timeout=25)
-    if len(r.text) > 100_000:
-        # No challenge — we're through already
-        return s
+    if "bm-verify" not in r.text:
+        return s  # no challenge, already through
 
-    # Parse challenge parameters
     pm = re.search(
         r'var i = (\d+);.*var j = i \+ Number\("(\d+)" \+ "(\d+)"\);',
         r.text, re.DOTALL,
     )
     bm = re.search(r'"bm-verify": "([^"]+)"', r.text)
     if not (pm and bm):
-        raise RuntimeError("Could not parse Akamai challenge — format may have changed")
+        raise RuntimeError("Akamai challenge format changed — update parser")
 
     j_val = int(pm.group(1)) + int(pm.group(2) + pm.group(3))
-
-    # Submit proof-of-work solution
     verify = s.post(
         "https://www.zara.com/_sec/verify?provider=interstitial",
         data=json.dumps({"bm-verify": bm.group(1), "pow": j_val}),
@@ -68,38 +65,57 @@ def make_session():
     return s
 
 
-# ─── Scrape sale page ──────────────────────────────────────────────────────
+# ─── Product extraction (MAN section only) ─────────────────────────────────
 
-def count_products(html: str) -> int:
-    """Count unique product IDs on a sale page."""
-    ids = re.findall(r'data-productid="(\d+)"', html)
-    return len(set(ids))
+def slugify(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
-def fetch_sale_page(s, url: str) -> dict:
-    """Fetch a sale URL and return count + raw size."""
-    r = s.get(url, timeout=25)
-    if r.status_code != 200:
-        return {"ok": False, "count": 0, "size": len(r.text), "error": f"HTTP {r.status_code}"}
-    count = count_products(r.text)
-    # Fallback-page sizes (homepage redirect) — ignore these
-    is_fallback = len(r.text) in (676_270, 1_133_583, 1_130_283)
-    if is_fallback or count == 0:
-        return {"ok": True, "count": 0, "size": len(r.text), "error": None}
-    return {"ok": True, "count": count, "size": len(r.text), "error": None}
+def extract_man_products(html: str) -> list:
+    """
+    Parse the embedded script JSON blob for MAN-section products.
+    Product JSON: "name":"X",...,"section":2,"sectionName":"MAN",...,"reference":"XXXXXXXX-"
+    URL format:   /il/en/{slug}-p{8-digit-ref}.html
+    """
+    scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.DOTALL)
+    big = max(scripts, key=len) if scripts else ""
+
+    # Find products where sectionName=MAN, then get their name + reference
+    # Structure: "name":"X" ... "sectionName":"MAN" ... "reference":"XXXXXXXX-V20XX"
+    pairs = re.findall(
+        r'"name":"([A-Z][^"]{2,60})".{0,600}?"section":2,"sectionName":"MAN".{0,600}?"reference":"(\d{8})-',
+        big,
+    )
+
+    seen = {}
+    for name, ref in pairs:
+        if ref not in seen:
+            url = f"https://www.zara.com/il/en/{slugify(name)}-p{ref}.html"
+            seen[ref] = {"name": name.title(), "ref": ref, "url": url}
+
+    return list(seen.values())
 
 
-# ─── Decision logic ────────────────────────────────────────────────────────
+# ─── Classify count ────────────────────────────────────────────────────────
 
 def classify(count: int) -> dict:
     if count == 0:
-        return {"status": "no_sale", "label": "No Sale",
-                "message": "No sale products detected"}
+        return {
+            "status": "no_sale",
+            "label": "No Men's Sale",
+            "message": "No men's sale products detected on Zara IL right now",
+        }
     if count < MAJOR_SALE_THRESHOLD:
-        return {"status": "special_prices", "label": "Special Prices",
-                "message": f"{count} items — small selection (regular Special Prices, not a major sale)"}
-    return {"status": "major_sale", "label": "🔥 MAJOR SALE",
-            "message": f"{count} items on sale — major seasonal sale active!"}
+        return {
+            "status": "special_prices",
+            "label": "Special Prices",
+            "message": f"{count} men's items — small selection, not a major sale",
+        }
+    return {
+        "status": "major_sale",
+        "label": "MAJOR SALE",
+        "message": f"{count} men's items on sale — major seasonal sale active!",
+    }
 
 
 # ─── Main ──────────────────────────────────────────────────────────────────
@@ -110,44 +126,58 @@ def main():
 
     try:
         s = make_session()
-        print("  Akamai challenge solved ✓")
+        print("  Akamai challenge solved")
     except Exception as e:
-        result = {
+        save({
             "checked_at": started,
-            "url": MAN_SALE_URL,
-            "count": None,
-            "verdict": {"status": "unknown", "label": "Unknown", "message": f"Session init failed: {e}"},
+            "sale_url": SALE_URL,
+            "man_count": None,
+            "sample_products": [],
+            "verdict": {"status": "unknown", "label": "Unknown", "message": str(e)},
             "threshold": MAJOR_SALE_THRESHOLD,
             "error": str(e),
-        }
-        save(result)
-        print(f"  ERROR: {e}")
+        })
         sys.exit(1)
 
     time.sleep(1)
-    info = fetch_sale_page(s, MAN_SALE_URL)
-    print(f"  Fetched {MAN_SALE_URL}: count={info['count']} size={info['size']}")
+    r = s.get(SALE_URL, timeout=25)
+    print(f"  Fetched {SALE_URL}: HTTP {r.status_code} size={len(r.text)}")
 
-    verdict = classify(info["count"]) if info["ok"] else \
-              {"status": "unknown", "label": "Unknown", "message": info["error"]}
+    if r.status_code != 200:
+        save({
+            "checked_at": started,
+            "sale_url": SALE_URL,
+            "man_count": None,
+            "sample_products": [],
+            "verdict": {"status": "unknown", "label": "Unknown", "message": f"HTTP {r.status_code}"},
+            "threshold": MAJOR_SALE_THRESHOLD,
+            "error": f"HTTP {r.status_code}",
+        })
+        sys.exit(1)
+
+    products = extract_man_products(r.text)
+    count = len(products)
+    print(f"  Men's products found: {count}")
+    verdict = classify(count)
 
     result = {
         "checked_at": started,
-        "url": MAN_SALE_URL,
-        "count": info["count"] if info["ok"] else None,
+        "sale_url": SALE_URL,
+        "man_count": count,
+        "sample_products": products[:SAMPLE_LIMIT],
         "verdict": verdict,
         "threshold": MAJOR_SALE_THRESHOLD,
-        "error": info["error"] if not info["ok"] else None,
+        "error": None,
     }
     save(result)
-    print(f"  Verdict: {verdict['label']} ({verdict['message']})")
+    print(f"  Verdict: {verdict['label']} — {verdict['message']}")
 
 
 def save(data: dict):
     path = os.path.join(os.path.dirname(__file__), "status.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-    print(f"  Saved → {path}")
+    print(f"  Saved -> {path}")
 
 
 if __name__ == "__main__":

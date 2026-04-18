@@ -1,12 +1,13 @@
 {
-  "checked_at": "2026-04-18T13:11:49.214350+00:00",
-  "url": "https://www.zara.com/il/en/man-sale-l1217.html",
-  "count": 32,
+  "checked_at": "2026-04-18T13:39:04.384797+00:00",
+  "sale_url": "https://www.zara.com/il/en/woman-sale-l1217.html",
+  "man_count": 0,
+  "sample_products": [],
   "verdict": {
-    "status": "major_sale",
-    "label": "🔥 MAJOR SALE",
-    "message": "32 items on sale — major seasonal sale active!"
+    "status": "no_sale",
+    "label": "No Men's Sale",
+    "message": "No men's sale products detected on Zara IL right now"
   },
-  "threshold": 30,
+  "threshold": 10,
   "error": null
 }
