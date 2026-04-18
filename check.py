@@ -34,12 +34,12 @@ MAJOR_SALE_THRESHOLD = 10  # >10 unique MAN products = major sale
 SAMPLE_LIMIT = 6
 SESSION_WARM_PAUSE_SEC = 2
 
-# ─── Notification (CallMeBot WhatsApp) ─────────────────────────────────────
-# Set these as GitHub Actions secrets:
-#   WHATSAPP_PHONE   — your number with country code, no +  e.g. 9725XXXXXXXX
-#   WHATSAPP_APIKEY  — key received from CallMeBot
-WHATSAPP_PHONE  = os.environ.get("WHATSAPP_PHONE", "")
-WHATSAPP_APIKEY = os.environ.get("WHATSAPP_APIKEY", "")
+# ─── Notification (Telegram) ───────────────────────────────────────────────
+# GitHub Actions secrets needed:
+#   TELEGRAM_TOKEN   — bot token from BotFather
+#   TELEGRAM_CHANNEL — channel username e.g. @ZaraILSaleAlerts
+TELEGRAM_TOKEN   = os.environ.get("TELEGRAM_TOKEN", "")
+TELEGRAM_CHANNEL = os.environ.get("TELEGRAM_CHANNEL", "@ZaraILSaleAlerts")
 
 
 # ─── Akamai bypass ─────────────────────────────────────────────────────────
@@ -129,23 +129,22 @@ def classify(count: int) -> dict:
 
 # ─── Notification ──────────────────────────────────────────────────────────
 
-def send_whatsapp(message: str):
-    """Send WhatsApp message via CallMeBot (free, unofficial)."""
-    if not WHATSAPP_PHONE or not WHATSAPP_APIKEY:
-        print("  [notify] No credentials set — skipping WhatsApp")
+def send_telegram(message: str):
+    """Post message to Telegram channel via bot."""
+    if not TELEGRAM_TOKEN:
+        print("  [notify] No token — skipping Telegram")
         return
     try:
         params = urllib.parse.urlencode({
-            "phone": WHATSAPP_PHONE,
+            "chat_id": TELEGRAM_CHANNEL,
             "text": message,
-            "apikey": WHATSAPP_APIKEY,
+            "parse_mode": "HTML",
         })
-        url = f"https://api.callmebot.com/whatsapp.php?{params}"
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage?{params}"
         with urllib.request.urlopen(url, timeout=15) as resp:
-            body = resp.read().decode()
-            print(f"  [notify] WhatsApp sent: {body[:80]}")
+            print(f"  [notify] Telegram sent OK (HTTP {resp.status})")
     except Exception as e:
-        print(f"  [notify] WhatsApp failed: {e}")
+        print(f"  [notify] Telegram failed: {e}")
 
 
 def load_previous_status() -> str:
@@ -164,24 +163,28 @@ def maybe_notify(prev_status: str, new_status: str, new_result: dict):
     if prev_status == new_status:
         return  # no change, stay quiet
 
+    shop_url = new_result.get("sale_url", "https://www.zara.com/il/en/")
+    site_url = "https://zivlederer.github.io/zara-sale-monitor/"
+
     if new_status == "major_sale":
         items = new_result.get("man_count", 0)
-        url = new_result.get("sale_url", "https://www.zara.com/il/en/")
         msg = (
-            f"ZARA IL MEN'S SALE IS ON!\n"
-            f"{items} items detected.\n"
-            f"Shop: {url}"
+            f"🔥 <b>ZARA IL MEN'S SALE IS ON!</b>\n\n"
+            f"{items} men's items detected on sale.\n\n"
+            f"🛍 <a href=\"{shop_url}\">Shop now</a>\n"
+            f"📊 <a href=\"{site_url}\">Monitor</a>"
         )
-        send_whatsapp(msg)
+        send_telegram(msg)
     elif new_status == "special_prices":
         items = new_result.get("man_count", 0)
         msg = (
-            f"Zara IL: Small men's sale ({items} items).\n"
-            f"Not a major sale yet — worth checking."
+            f"🏷 <b>Zara IL — Small Men's Sale</b>\n\n"
+            f"{items} items found. Not a major sale yet.\n\n"
+            f"🛍 <a href=\"{shop_url}\">Check it out</a>"
         )
-        send_whatsapp(msg)
+        send_telegram(msg)
     elif new_status == "no_sale" and prev_status in ("major_sale", "special_prices"):
-        send_whatsapp("Zara IL men's sale has ended.")
+        send_telegram("✅ <b>Zara IL men's sale has ended.</b>")
 
 
 # ─── Main ──────────────────────────────────────────────────────────────────
