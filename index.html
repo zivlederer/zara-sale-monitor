@@ -98,6 +98,40 @@
     .btn:hover { opacity: 0.8; }
     .btn:disabled { opacity: 0.4; cursor: default; }
 
+    .next-sale {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin-top: 1rem;
+    }
+    .next-sale-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.6rem;
+    }
+    .next-sale-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+    .next-sale-name { font-weight: 600; font-size: 0.95rem; }
+    .next-sale-sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.15rem; }
+    .next-sale-right { text-align: right; }
+    .next-sale-date { font-size: 1.1rem; font-weight: 700; }
+    .next-sale-countdown { font-size: 0.75rem; color: var(--muted); margin-top: 0.1rem; }
+    .next-sale-note {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.65rem;
+      border-top: 1px solid var(--border);
+      padding-top: 0.55rem;
+    }
+
     .source {
       text-align: center;
       margin-top: 1.25rem;
@@ -156,6 +190,21 @@
   <div class="meta">
     <div>Last checked: <span class="val" id="checkedAt">—</span></div>
     <button class="btn" id="refreshBtn" onclick="load()">↺ Refresh</button>
+  </div>
+
+  <div class="next-sale">
+    <div class="next-sale-title">Next Expected Sale</div>
+    <div class="next-sale-row">
+      <div>
+        <div class="next-sale-name">Summer Sale 2026</div>
+        <div class="next-sale-sub">Men, Women &amp; Kids · est. 30–70% off</div>
+      </div>
+      <div class="next-sale-right">
+        <div class="next-sale-date" id="nextSaleDate">~Jun 21</div>
+        <div class="next-sale-countdown" id="countdown">—</div>
+      </div>
+    </div>
+    <div class="next-sale-note">⚠ Global estimate based on historical patterns — IL may differ by 1–2 weeks. Zara never announces exact dates in advance. Monitor auto-detects when sale goes live.</div>
   </div>
 
   <div class="source">
@@ -246,6 +295,23 @@
     document.getElementById("errorBox").innerHTML =
       `<div class="error-box">⚠ ${msg}</div>`;
   }
+
+  // Countdown to next expected sale
+  function updateCountdown() {
+    const target = new Date("2026-06-21T00:00:00+03:00"); // Israel time
+    const now = new Date();
+    const diff = target - now;
+    if (diff <= 0) {
+      document.getElementById("countdown").textContent = "should be live now!";
+      return;
+    }
+    const days  = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    document.getElementById("countdown").textContent =
+      days > 0 ? `in ${days}d ${hours}h` : `in ${hours}h`;
+  }
+  updateCountdown();
+  setInterval(updateCountdown, 60000);
 
   load();
 </script>

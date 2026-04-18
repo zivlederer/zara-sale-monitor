@@ -9,6 +9,8 @@ import json
 import re
 import time
 import os
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 
 # Force UTF-8 stdout (Windows fix)
@@ -31,6 +33,13 @@ SALE_URL = "https://www.zara.com/il/en/woman-sale-l1217.html"
 MAJOR_SALE_THRESHOLD = 10  # >10 unique MAN products = major sale
 SAMPLE_LIMIT = 6
 SESSION_WARM_PAUSE_SEC = 2
+
+# ─── Notification (CallMeBot WhatsApp) ─────────────────────────────────────
+# Set these as GitHub Actions secrets:
+#   WHATSAPP_PHONE   — your number with country code, no +  e.g. 9725XXXXXXXX
+#   WHATSAPP_APIKEY  — key received from CallMeBot
+WHATSAPP_PHONE  = os.environ.get("WHATSAPP_PHONE", "")
+WHATSAPP_APIKEY = os.environ.get("WHATSAPP_APIKEY", "")
 
 
 # ─── Akamai bypass ─────────────────────────────────────────────────────────
@@ -118,11 +127,70 @@ def classify(count: int) -> dict:
     }
 
 
+# ─── Notification ──────────────────────────────────────────────────────────
+
+def send_whatsapp(message: str):
+    """Send WhatsApp message via CallMeBot (free, unofficial)."""
+    if not WHATSAPP_PHONE or not WHATSAPP_APIKEY:
+        print("  [notify] No credentials set — skipping WhatsApp")
+        return
+    try:
+        params = urllib.parse.urlencode({
+            "phone": WHATSAPP_PHONE,
+            "text": message,
+            "apikey": WHATSAPP_APIKEY,
+        })
+        url = f"https://api.callmebot.com/whatsapp.php?{params}"
+        with urllib.request.urlopen(url, timeout=15) as resp:
+            body = resp.read().decode()
+            print(f"  [notify] WhatsApp sent: {body[:80]}")
+    except Exception as e:
+        print(f"  [notify] WhatsApp failed: {e}")
+
+
+def load_previous_status() -> str:
+    """Return previous verdict status string, or None if no file."""
+    path = os.path.join(os.path.dirname(__file__), "status.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("verdict", {}).get("status")
+    except Exception:
+        return None
+
+
+def maybe_notify(prev_status: str, new_status: str, new_result: dict):
+    """Send WhatsApp only when sale status changes."""
+    if prev_status == new_status:
+        return  # no change, stay quiet
+
+    if new_status == "major_sale":
+        items = new_result.get("man_count", 0)
+        url = new_result.get("sale_url", "https://www.zara.com/il/en/")
+        msg = (
+            f"ZARA IL MEN'S SALE IS ON!\n"
+            f"{items} items detected.\n"
+            f"Shop: {url}"
+        )
+        send_whatsapp(msg)
+    elif new_status == "special_prices":
+        items = new_result.get("man_count", 0)
+        msg = (
+            f"Zara IL: Small men's sale ({items} items).\n"
+            f"Not a major sale yet — worth checking."
+        )
+        send_whatsapp(msg)
+    elif new_status == "no_sale" and prev_status in ("major_sale", "special_prices"):
+        send_whatsapp("Zara IL men's sale has ended.")
+
+
 # ─── Main ──────────────────────────────────────────────────────────────────
 
 def main():
     print("Zara IL Men's Sale Monitor — starting check...")
     started = datetime.now(timezone.utc).isoformat()
+    prev_status = load_previous_status()
+    print(f"  Previous status: {prev_status}")
 
     try:
         s = make_session()
@@ -171,6 +239,7 @@ def main():
     }
     save(result)
     print(f"  Verdict: {verdict['label']} — {verdict['message']}")
+    maybe_notify(prev_status, verdict["status"], result)
 
 
 def save(data: dict):

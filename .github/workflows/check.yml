@@ -31,6 +31,9 @@ jobs:
 
       - name: Run sale checker
         run: python check.py
+        env:
+          WHATSAPP_PHONE:  ${{ secrets.WHATSAPP_PHONE }}
+          WHATSAPP_APIKEY: ${{ secrets.WHATSAPP_APIKEY }}
 
       - name: Commit & push status.json
         run: |
