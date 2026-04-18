@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-04-18T14:24:13.091878+00:00",
+  "checked_at": "2026-04-18T16:01:05.522397+00:00",
   "sale_url": "https://www.zara.com/il/en/woman-sale-l1217.html",
   "man_count": 0,
   "sample_products": [],
@@ -9,5 +9,6 @@
     "message": "No men's sale products detected on Zara IL right now"
   },
   "threshold": 10,
+  "reminders_sent": [],
   "error": null
 }

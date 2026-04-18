@@ -11,7 +11,7 @@ import time
 import os
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # Force UTF-8 stdout (Windows fix)
 try:
@@ -40,6 +40,18 @@ SESSION_WARM_PAUSE_SEC = 2
 #   TELEGRAM_CHANNEL — channel username e.g. @ZaraILSaleAlerts
 TELEGRAM_TOKEN   = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHANNEL = os.environ.get("TELEGRAM_CHANNEL", "@ZaraILSaleAlerts")
+
+# Expected next sale date (update each season)
+NEXT_SALE_DATE = datetime(2026, 6, 21, tzinfo=timezone.utc)
+
+# Reminders to send: (id, days_offset, message)
+# Negative offset = before sale, positive = after
+SALE_REMINDERS = [
+    ("pre_2w", -14, "🗓 <b>Zara IL sale expected in ~2 weeks</b>\n\nEstimated start: Jun 21. Monitor will auto-detect when it goes live.\n\n📊 <a href=\"https://zivlederer.github.io/zara-sale-monitor/\">Monitor</a>"),
+    ("pre_1w",  -7, "⏰ <b>Zara IL sale expected in ~1 week!</b>\n\nEst. start: Jun 21. Could be earlier — monitor is checking daily.\n\n📊 <a href=\"https://zivlederer.github.io/zara-sale-monitor/\">Monitor</a>"),
+    ("post_1w", +7, "👀 <b>Zara IL sale window is open</b>\n\nPast the estimated start date. No men's sale detected yet — but it could drop any day.\n\n📊 <a href=\"https://zivlederer.github.io/zara-sale-monitor/\">Monitor</a>"),
+    ("post_2w", +14, "📅 <b>Still within Zara IL sale window</b>\n\nTwo weeks past estimated date. Monitor is still watching daily.\n\n📊 <a href=\"https://zivlederer.github.io/zara-sale-monitor/\">Monitor</a>"),
+]
 
 
 # ─── Akamai bypass ─────────────────────────────────────────────────────────
@@ -147,15 +159,37 @@ def send_telegram(message: str):
         print(f"  [notify] Telegram failed: {e}")
 
 
-def load_previous_status() -> str:
-    """Return previous verdict status string, or None if no file."""
+def fire_reminders(sent_ids: list) -> list:
+    """
+    Check if today falls on a reminder milestone.
+    Send if not already sent. Returns updated sent_ids list.
+    """
+    now = datetime.now(timezone.utc)
+    for rid, offset_days, msg in SALE_REMINDERS:
+        if rid in sent_ids:
+            continue
+        target = NEXT_SALE_DATE + timedelta(days=offset_days)
+        # Fire if we've passed the target day (within a 2-day window to catch missed runs)
+        days_past = (now - target).days
+        if 0 <= days_past <= 2:
+            print(f"  [reminder] Firing reminder: {rid}")
+            send_telegram(msg)
+            sent_ids.append(rid)
+    return sent_ids
+
+
+def load_previous_state() -> tuple:
+    """Return (prev_status, sent_reminder_ids) from status.json."""
     path = os.path.join(os.path.dirname(__file__), "status.json")
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        return data.get("verdict", {}).get("status")
+        return (
+            data.get("verdict", {}).get("status"),
+            data.get("reminders_sent", []),
+        )
     except Exception:
-        return None
+        return None, []
 
 
 def maybe_notify(prev_status: str, new_status: str, new_result: dict):
@@ -192,8 +226,8 @@ def maybe_notify(prev_status: str, new_status: str, new_result: dict):
 def main():
     print("Zara IL Men's Sale Monitor — starting check...")
     started = datetime.now(timezone.utc).isoformat()
-    prev_status = load_previous_status()
-    print(f"  Previous status: {prev_status}")
+    prev_status, sent_reminder_ids = load_previous_state()
+    print(f"  Previous status: {prev_status}, reminders sent: {sent_reminder_ids}")
 
     try:
         s = make_session()
@@ -231,6 +265,10 @@ def main():
     print(f"  Men's products found: {count}")
     verdict = classify(count)
 
+    # Fire date-based reminders (only when no active sale — don't double-notify)
+    if verdict["status"] != "major_sale":
+        sent_reminder_ids = fire_reminders(sent_reminder_ids)
+
     result = {
         "checked_at": started,
         "sale_url": SALE_URL,
@@ -238,6 +276,7 @@ def main():
         "sample_products": products[:SAMPLE_LIMIT],
         "verdict": verdict,
         "threshold": MAJOR_SALE_THRESHOLD,
+        "reminders_sent": sent_reminder_ids,
         "error": None,
     }
     save(result)
