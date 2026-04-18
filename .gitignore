@@ -1,0 +1,8 @@
+.claude/
+__pycache__/
+*.pyc
+test_*.py
+cats_*.json
+.venv/
+venv/
+.DS_Store

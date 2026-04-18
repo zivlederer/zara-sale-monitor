@@ -1,0 +1,12 @@
+{
+  "checked_at": "2026-04-18T12:57:03.237958+00:00",
+  "url": "https://www.zara.com/il/en/man-sale-l1217.html",
+  "count": 32,
+  "verdict": {
+    "status": "major_sale",
+    "label": "🔥 MAJOR SALE",
+    "message": "32 items on sale — major seasonal sale active!"
+  },
+  "threshold": 30,
+  "error": null
+}

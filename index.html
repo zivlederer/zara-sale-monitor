@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zara IL — Men's Sale Monitor</title>
+  <style>
+    :root {
+      --bg: #f7f7f5;
+      --card: #ffffff;
+      --text: #111;
+      --muted: #666;
+      --border: #e5e5e5;
+      --red: #e63329;
+      --green: #1a7a4a;
+      --orange: #d97706;
+      --gray: #888;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .wrap { max-width: 560px; width: 100%; }
+
+    header { text-align: center; margin-bottom: 1.75rem; }
+    header h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.5px; }
+    header p { color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
+
+    .verdict {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .verdict-icon { font-size: 3.75rem; line-height: 1; margin-bottom: 0.75rem; }
+    .verdict-label { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .verdict-msg { color: var(--muted); font-size: 0.9rem; }
+
+    .verdict.major_sale .verdict-label { color: var(--red); }
+    .verdict.special_prices .verdict-label { color: var(--orange); }
+    .verdict.no_sale .verdict-label { color: var(--green); }
+    .verdict.unknown .verdict-label { color: var(--gray); }
+
+    .count-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .count-card {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.25rem;
+    }
+    .count-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .count-val { font-size: 1.7rem; font-weight: 700; line-height: 1; }
+    .count-sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.3rem; }
+
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 1rem;
+    }
+    .meta span.val { font-weight: 500; color: var(--text); }
+
+    .btn {
+      background: var(--text);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 0.45rem 1rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .btn:hover { opacity: 0.8; }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+
+    .source {
+      text-align: center;
+      margin-top: 1.25rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .source a { color: var(--text); }
+
+    .error-box {
+      background: #fff5e6;
+      border: 1px solid #fcd5a0;
+      border-radius: 8px;
+      padding: 0.8rem 1rem;
+      font-size: 0.82rem;
+      color: #8a4a00;
+      margin-top: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Zara IL — Men's Sale Monitor</h1>
+    <p>Auto-checks daily. Shows raw product count + verdict.</p>
+  </header>
+
+  <div class="verdict unknown" id="verdict">
+    <div class="verdict-icon" id="vIcon">⏳</div>
+    <div class="verdict-label" id="vLabel">Loading…</div>
+    <div class="verdict-msg" id="vMsg">Fetching status.json</div>
+  </div>
+
+  <div class="count-row">
+    <div class="count-card">
+      <div class="count-title">Raw Product Count</div>
+      <div class="count-val" id="count">—</div>
+      <div class="count-sub">on man-sale-l1217.html</div>
+    </div>
+    <div class="count-card">
+      <div class="count-title">Sale Threshold</div>
+      <div class="count-val" id="threshold">—</div>
+      <div class="count-sub">≥ this = major sale</div>
+    </div>
+  </div>
+
+  <div id="errorBox"></div>
+
+  <div class="meta">
+    <div>Last checked: <span class="val" id="checkedAt">—</span></div>
+    <button class="btn" id="refreshBtn" onclick="load()">↺ Refresh</button>
+  </div>
+
+  <div class="source">
+    Source: <a id="sourceLink" href="#" target="_blank" rel="noopener">Zara IL Men's Sale</a>
+  </div>
+</div>
+
+<script>
+  const STATUS_FILE = "status.json";
+  const STATUS_ICON = {
+    major_sale: "🔥",
+    special_prices: "🏷️",
+    no_sale: "✅",
+    unknown: "❓",
+  };
+
+  async function load() {
+    const btn = document.getElementById("refreshBtn");
+    btn.disabled = true;
+    btn.textContent = "Loading…";
+    try {
+      const res = await fetch(STATUS_FILE + "?t=" + Date.now());
+      render(await res.json());
+    } catch (e) {
+      showError("Could not load status.json: " + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "↺ Refresh";
+    }
+  }
+
+  function render(data) {
+    const v = data.verdict || {};
+    const status = v.status || "unknown";
+
+    // Verdict card
+    const vEl = document.getElementById("verdict");
+    vEl.className = "verdict " + status;
+    document.getElementById("vIcon").textContent  = STATUS_ICON[status] || "❓";
+    document.getElementById("vLabel").textContent = v.label || "Unknown";
+    document.getElementById("vMsg").textContent   = v.message || "";
+
+    // Counts
+    document.getElementById("count").textContent     = (data.count != null) ? data.count : "—";
+    document.getElementById("threshold").textContent = data.threshold != null ? data.threshold : "—";
+
+    // Meta
+    const checkedAt = data.checked_at
+      ? new Date(data.checked_at).toLocaleString("en-IL", {
+          dateStyle: "medium", timeStyle: "short",
+        })
+      : "Never";
+    document.getElementById("checkedAt").textContent = checkedAt;
+
+    // Source link
+    if (data.url) document.getElementById("sourceLink").href = data.url;
+
+    // Error
+    const errBox = document.getElementById("errorBox");
+    if (data.error) {
+      errBox.innerHTML = `<div class="error-box">⚠ ${data.error}</div>`;
+    } else {
+      errBox.innerHTML = "";
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById("errorBox").innerHTML =
+      `<div class="error-box">⚠ ${msg}</div>`;
+  }
+
+  load();
+</script>
+</body>
+</html>
