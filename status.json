@@ -1,12 +1,43 @@
 {
-  "checked_at": "2026-05-20T10:28:02.838642+00:00",
+  "checked_at": "2026-05-21T10:45:03.729761+00:00",
   "sale_url": "https://www.zara.com/il/en/woman-sale-l1217.html",
-  "man_count": 0,
-  "sample_products": [],
+  "man_count": 9,
+  "sample_products": [
+    {
+      "name": "Check Shirt With Dtmf Patches",
+      "ref": "04437507",
+      "url": "https://www.zara.com/il/en/check-shirt-with-dtmf-patches-p04437507.html"
+    },
+    {
+      "name": "Relaxed Fit Cotton Poplin Shirt",
+      "ref": "05588409",
+      "url": "https://www.zara.com/il/en/relaxed-fit-cotton-poplin-shirt-p05588409.html"
+    },
+    {
+      "name": "Relaxed-Fit Check Shirt",
+      "ref": "06861563",
+      "url": "https://www.zara.com/il/en/relaxed-fit-check-shirt-p06861563.html"
+    },
+    {
+      "name": "Boxy Fit Check Shirt",
+      "ref": "07545505",
+      "url": "https://www.zara.com/il/en/boxy-fit-check-shirt-p07545505.html"
+    },
+    {
+      "name": "Jacquard Check Polo Shirt",
+      "ref": "07545525",
+      "url": "https://www.zara.com/il/en/jacquard-check-polo-shirt-p07545525.html"
+    },
+    {
+      "name": "Relaxed Fit Striped Shirt",
+      "ref": "04708310",
+      "url": "https://www.zara.com/il/en/relaxed-fit-striped-shirt-p04708310.html"
+    }
+  ],
   "verdict": {
-    "status": "no_sale",
-    "label": "No Men's Sale",
-    "message": "No men's sale products detected on Zara IL right now"
+    "status": "special_prices",
+    "label": "Special Prices",
+    "message": "9 men's items — small selection, not a major sale"
   },
   "threshold": 10,
   "reminders_sent": [],
