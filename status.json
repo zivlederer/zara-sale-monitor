@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-06-13T10:05:46.205159+00:00",
+  "checked_at": "2026-06-14T10:29:21.369667+00:00",
   "sale_url": "https://www.zara.com/il/en/woman-sale-l1217.html",
   "man_count": 0,
   "sample_products": [],
@@ -10,7 +10,8 @@
   },
   "threshold": 10,
   "reminders_sent": [
-    "pre_2w"
+    "pre_2w",
+    "pre_1w"
   ],
   "error": null
 }
